@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HyperPuzzle U-Code 生成器</title>
+    <style>
+        /* --- 全局与布局 --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 420px;
+            background-color: #1e1e1e;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid #333;
+            transition: all 0.3s ease;
+        }
+
+        h1 {
+            text-align: center;
+            color: #4a90e2;
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-weight: 600;
+        }
+
+        /* --- 表单元素 --- */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #aaa;
+            font-weight: 500;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            background-color: #2c2c2c;
+            border: 1px solid #444;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #4a90e2;
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.3);
+        }
+
+        .input-field.error {
+            border-color: #ff5722;
+        }
+
+        .d-code-inputs {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .d-code-input {
+            width: 22%;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background-color: #4a90e2;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+
+        button:hover {
+            background-color: #5aa1f2;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            background-color: #444;
+            cursor: not-allowed;
+        }
+
+        /* --- 结果与状态显示 --- */
+        .result-section {
+            margin-top: 25px;
+            text-align: center;
+        }
+
+        .result-code {
+            font-size: 28px;
+            font-weight: bold;
+            color: #f5a623;
+            background-color: #2c2c2c;
+            padding: 10px 20px;
+            border-radius: 8px;
+            letter-spacing: 2px;
+            display: inline-block;
+            margin-bottom: 15px;
+        }
+
+        .status-message {
+            text-align: center;
+            color: #ff5722;
+            font-size: 14px;
+            height: 20px;
+            margin-top: -10px;
+            margin-bottom: 15px;
+        }
+
+        /* --- 状态控制 --- */
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>HyperPuzzle U-Code 生成器</h1>
+        <p class="status-message" id="statusMessage"></p>
+
+        <!-- ==================== 1. 授权模块 ==================== -->
+        <div id="authSection">
+            <div class="form-group">
+                <label for="authCode">请输入授权码</label>
+                <input type="password" id="authCode" class="input-field" placeholder="授权码">
+            </div>
+            <button id="authButton">授权</button>
+        </div>
+
+        <!-- ==================== 2. D码/U码转换模块 ==================== -->
+        <div id="converterSection" class="hidden">
+            <div class="form-group">
+                <label>请输入4位设备码 (D-Code)</label>
+                <div class="d-code-inputs">
+                    <input type="text" id="dCode1" class="input-field d-code-input" maxlength="1">
+                    <input type="text" id="dCode2" class="input-field d-code-input" maxlength="1">
+                    <input type="text" id="dCode3" class="input-field d-code-input" maxlength="1">
+                    <input type="text" id="dCode4" class="input-field d-code-input" maxlength="1">
+                </div>
+            </div>
+            <button id="generateButton">生成 U-Code</button>
+
+            <div id="resultSection" class="result-section hidden">
+                <label>生成的解锁码 (U-Code)</label>
+                <div class="result-code" id="uCodeResult"></div>
+            </div>
+            
+            <button id="resetButton" class="hidden" style="background-color: #555; margin-top: 20px;">重置</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- 预设常量和状态 ---
+            const CORRECT_AUTH_CODE = ">2);jWfl,;_B(4}$mY";
+            let currentState = 'STATE_AWAITING_AUTH';
+
+            // --- DOM 元素获取 ---
+            const authSection = document.getElementById('authSection');
+            const converterSection = document.getElementById('converterSection');
+            const authCodeInput = document.getElementById('authCode');
+            const authButton = document.getElementById('authButton');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            const dCodeInputs = [
+                document.getElementById('dCode1'),
+                document.getElementById('dCode2'),
+                document.getElementById('dCode3'),
+                document.getElementById('dCode4')
+            ];
+            const generateButton = document.getElementById('generateButton');
+            const resultSection = document.getElementById('resultSection');
+            const uCodeResult = document.getElementById('uCodeResult');
+            const resetButton = document.getElementById('resetButton');
+
+            // --- 核心函数 ---
+
+            function updateUI() {
+                statusMessage.textContent = '';
+                authCodeInput.classList.remove('error');
+
+                if (currentState === 'STATE_AWAITING_AUTH') {
+                    authSection.classList.remove('hidden');
+                    converterSection.classList.add('hidden');
+                } else if (currentState === 'STATE_READY_TO_CONVERT') {
+                    authSection.classList.add('hidden');
+                    converterSection.classList.remove('hidden');
+                    resultSection.classList.add('hidden');
+                    resetButton.classList.add('hidden');
+                    generateButton.disabled = false;
+                    dCodeInputs.forEach(input => input.disabled = false);
+                } else if (currentState === 'STATE_SHOWING_RESULT') {
+                    authSection.classList.add('hidden');
+                    converterSection.classList.remove('hidden');
+                    resultSection.classList.remove('hidden');
+                    resetButton.classList.remove('hidden');
+                    generateButton.disabled = true;
+                    dCodeInputs.forEach(input => input.disabled = true);
+                }
+            }
+
+            function handleAuth() {
+                if (authCodeInput.value === CORRECT_AUTH_CODE) {
+                    currentState = 'STATE_READY_TO_CONVERT';
+                    updateUI();
+                } else {
+                    statusMessage.textContent = '授权码错误！';
+                    authCodeInput.classList.add('error');
+                    authCodeInput.value = '';
+                    authCodeInput.focus();
+                }
+            }
+
+            function handleGenerateUCode() {
+                const dCode = dCodeInputs.map(input => input.value.toUpperCase()).join('');
+                if (dCode.length !== 4 || !/^[A-Z]{4}$/.test(dCode)) {
+                    statusMessage.textContent = '请输入4位有效的字母设备码！';
+                    return;
+                }
+                
+                const uCode = calculateUCode(dCode);
+                uCodeResult.textContent = uCode;
+                currentState = 'STATE_SHOWING_RESULT';
+                updateUI();
+            }
+            
+            function calculateUCode(dCode) {
+                const charMap = {};
+                const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                for (let i = 0; i < alphabet.length; i++) {
+                    charMap[alphabet[i]] = (i + 10).toString();
+                }
+
+                let initialUCode = "";
+                for (const char of dCode) {
+                    initialUCode += charMap[char];
+                }
+
+                let sumOfDigits = 0;
+                for (const digit of initialUCode) {
+                    sumOfDigits += parseInt(digit, 10);
+                }
+                
+                const checksum = Math.floor(sumOfDigits / 8);
+                return initialUCode + checksum.toString();
+            }
+
+            function resetPage() {
+                currentState = 'STATE_AWAITING_AUTH';
+                authCodeInput.value = '';
+                dCodeInputs.forEach(input => input.value = '');
+                updateUI();
+            }
+
+            // --- 事件监听器绑定 ---
+            authButton.addEventListener('click', handleAuth);
+            authCodeInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleAuth();
+            });
+
+            generateButton.addEventListener('click', handleGenerateUCode);
+            resetButton.addEventListener('click', resetPage);
+
+            dCodeInputs.forEach((input, index) => {
+                input.addEventListener('input', () => {
+                    input.value = input.value.toUpperCase();
+                    if (input.value && index < dCodeInputs.length - 1) {
+                        dCodeInputs[index + 1].focus();
+                    }
+                });
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Backspace' && !input.value && index > 0) {
+                        dCodeInputs[index - 1].focus();
+                    }
+                });
+            });
+
+            // --- 初始化 ---
+            updateUI();
+            authCodeInput.focus();
+        });
+    </script>
+</body>
+</html>
